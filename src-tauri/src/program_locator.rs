@@ -51,6 +51,7 @@ const REJECTED_LIMIT: usize = 8;
 /// cmd.exe cannot start a script whose path is longer than this.
 #[cfg(test)]
 const CMD_PATH_LIMIT: usize = 260;
+#[cfg(any(unix, test))]
 const LOGIN_ENV_NAMES: &[&str] = &[
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -656,6 +657,7 @@ impl EnvironmentBlocks {
             .or_else(|| Self::value(&self.machine, name).map(OsString::from))
     }
 
+    #[cfg(test)]
     pub(crate) fn login_env(&self, process: Lookup<'_>) -> Vec<(String, OsString)> {
         let mut env: Vec<(String, OsString)> = Vec::new();
         for (name, value) in self.user.iter().chain(self.machine.iter()) {
@@ -1168,6 +1170,7 @@ pub(crate) fn child_env(prepend: &[PathBuf], append: &[PathBuf]) -> Vec<(String,
     env
 }
 
+#[cfg(any(unix, test))]
 pub(crate) fn login_env_name(name: &str, windows: bool) -> bool {
     LOGIN_ENV_NAMES
         .iter()
@@ -1182,6 +1185,7 @@ pub(crate) fn login_env_name(name: &str, windows: bool) -> bool {
         })
 }
 
+#[cfg(any(unix, test))]
 fn same_env_name(left: &str, right: &str, windows: bool) -> bool {
     if windows {
         left.eq_ignore_ascii_case(right)
