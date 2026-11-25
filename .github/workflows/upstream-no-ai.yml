@@ -25,8 +25,8 @@ jobs:
           fetch-depth: 0
       - name: Configure merge identity
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'peplxx'
+          git config user.email '91543105+peplxx@users.noreply.github.com'
       - name: Prepare ordinary Git merge
         id: merge
         run: python3 scripts/no-ai/sync-upstream.py prepare
