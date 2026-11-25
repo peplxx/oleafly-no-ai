@@ -1259,7 +1259,10 @@ mod windows_processes {
     }
 
     fn python() -> PathBuf {
-        crate::acp::tests::fixture_python()
+        locate_native("python")
+            .or_else(|| locate_native("python3"))
+            .map(|located| located.path)
+            .expect("Python 3 is required for Windows process fixtures")
     }
 
     /// Node.js 22.20+ crashes with `EISDIR: lstat 'C:'` when its main script

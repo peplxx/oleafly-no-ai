@@ -37,7 +37,7 @@ vi.mock("@/lib/theme", () => ({
 }));
 
 import { measureTourPlacement, TourGuide } from "./TourGuide";
-import { startTour } from "@/lib/tour";
+import { startTour, takeUnheardTourStart } from "@/lib/tour";
 import { tourRegistry, type TourStepDefinition } from "@/lib/tours/registry";
 import { useFilesStore } from "@/store/files";
 import { useSettingsStore } from "@/store/settings";
