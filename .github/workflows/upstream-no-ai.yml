@@ -30,6 +30,15 @@ jobs:
       - name: Prepare ordinary Git merge
         id: merge
         run: python3 scripts/no-ai/sync-upstream.py prepare
+      - name: Require updater signing key
+        if: steps.merge.outputs.dispatch == 'true'
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::Add the TAURI_SIGNING_PRIVATE_KEY repository secret before syncing a release."
+            exit 1
+          fi
       - uses: pnpm/action-setup@v4
         if: steps.merge.outputs.ready == 'true'
       - uses: actions/setup-node@v6
@@ -46,6 +55,15 @@ jobs:
         if: steps.merge.outputs.ready == 'true'
       - uses: Swatinem/rust-cache@v2
         if: steps.merge.outputs.ready == 'true'
+        with:
+          workspaces: . -> src-tauri/target
+      # build.rs stages these tools on Linux even when Tauri bundling is disabled.
+      - name: Fetch tools required by the Linux build script
+        if: steps.merge.outputs.ready == 'true'
+        run: |
+          bash scripts/fetch-tectonic.sh x86_64-unknown-linux-gnu
+          bash scripts/fetch-pandoc.sh x86_64-unknown-linux-gnu
+          bash scripts/fetch-typst.sh x86_64-unknown-linux-gnu
       - name: Verify merged tree
         if: steps.merge.outputs.ready == 'true'
         run: |
