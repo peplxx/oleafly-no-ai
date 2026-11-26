@@ -69,14 +69,74 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.prepare(), {"ready": True, "dispatch": True, "tag": "v1.0.0-noai.1"})
         self.assertEqual(self.git("tag"), "")
 
-    def test_unpublished_release_is_retried_only_when_no_run_exists(self):
+    def release_run(self, **changes):
+        return {"id": 100, "display_title": "Release v1.0.0-noai.1", "status": "completed",
+                "conclusion": "failure", "run_attempt": 1, **changes}
+
+    def test_unpublished_release_is_dispatched_when_no_matching_run_exists(self):
         self.git("tag", "v1.0.0-noai.1")
-        for runs, dispatch in [([], True), ([{"display_title": "Release v1.0.0-noai.1", "status": "in_progress"}], False)]:
+        other = self.release_run(display_title="Release v0.9.0-noai.1", status="in_progress")
+        for runs in [[], [other]]:
             with patch.object(sync, "api", side_effect=[None, {"workflow_runs": runs}]):
-                self.assertEqual(self.prepare()["dispatch"], dispatch)
-        with patch.object(sync, "api", side_effect=[None, {"workflow_runs": [{"display_title": "Release v1.0.0-noai.1", "status": "completed"}]}]):
-            with self.assertRaisesRegex(RuntimeError, "not published"):
-                self.prepare()
+                self.assertEqual(self.prepare(), {"ready": False, "dispatch": True, "tag": "v1.0.0-noai.1"})
+
+    def test_any_active_release_run_blocks_retry_and_new_merge(self):
+        self.git("tag", "v1.0.0-noai.1")
+        for status in ["queued", "in_progress", "waiting", "pending", "requested"]:
+            with self.subTest(status=status):
+                # Even an older active run must block retrying a newer failed one.
+                runs = [self.release_run(id=200), self.release_run(status=status, conclusion=None)]
+                with patch.object(sync, "api", side_effect=[{"draft": True}, {"workflow_runs": runs}]):
+                    self.assertEqual(self.prepare(), {"ready": False, "dispatch": False, "tag": "v1.0.0-noai.1"})
+
+    def test_failed_release_retries_existing_run_without_changing_source_or_tag(self):
+        self.git("tag", "v1.0.0-noai.1")
+        head = self.git("rev-parse", "HEAD")
+        state = self.state.read_text()
+        for release in [None, {"draft": True}]:
+            for conclusion in ["failure", "timed_out", "startup_failure"]:
+                for attempt in [1, 2, 3]:
+                    with self.subTest(release=release, conclusion=conclusion, attempt=attempt):
+                        runs = [self.release_run(conclusion=conclusion, run_attempt=attempt)]
+                        with patch.object(sync, "api", side_effect=[release, {"workflow_runs": runs}]) as api:
+                            self.assertEqual(self.prepare(), {"ready": False, "dispatch": False,
+                                                             "tag": "v1.0.0-noai.1", "rerun": 100})
+                            self.assertEqual(api.call_count, 2)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertEqual(self.git("rev-parse", "v1.0.0-noai.1"), head)
+        self.assertEqual(self.state.read_text(), state)
+
+    def test_latest_release_run_is_selected_regardless_of_response_order(self):
+        self.git("tag", "v1.0.0-noai.1")
+        runs = [self.release_run(run_attempt=4), self.release_run(id=200, run_attempt=2)]
+        for ordered in [runs, list(reversed(runs))]:
+            with patch.object(sync, "api", side_effect=[None, {"workflow_runs": ordered}]):
+                self.assertEqual(self.prepare()["rerun"], 200)
+
+    def test_release_retry_stops_at_attempt_limit(self):
+        self.git("tag", "v1.0.0-noai.1")
+        for attempt in [4, 5]:
+            with self.subTest(attempt=attempt):
+                runs = [self.release_run(run_attempt=attempt)]
+                with patch.object(sync, "api", side_effect=[None, {"workflow_runs": runs}]):
+                    with self.assertRaisesRegex(RuntimeError, "automatic limit: 4"):
+                        self.prepare()
+
+    def test_non_failure_conclusions_require_manual_review(self):
+        self.git("tag", "v1.0.0-noai.1")
+        for conclusion in ["success", "cancelled", "action_required", "neutral", "skipped"]:
+            with self.subTest(conclusion=conclusion):
+                runs = [self.release_run(), self.release_run(id=200, conclusion=conclusion)]
+                with patch.object(sync, "api", side_effect=[{"draft": True}, {"workflow_runs": runs}]):
+                    with self.assertRaisesRegex(RuntimeError, "Inspect/re-run it manually"):
+                        self.prepare()
+
+    def test_published_release_does_not_retry_old_failures(self):
+        self.git("tag", "v1.0.0-noai.1")
+        with patch.object(sync, "api", side_effect=[{"draft": False}, []]) as api:
+            self.assertEqual(self.prepare(), {"ready": False, "dispatch": False})
+        self.assertEqual(api.call_args_list[1][0][0], "repos/source/app/releases?per_page=100&page=1")
 
     def merge_upstream(self, conflict=False):
         if conflict:

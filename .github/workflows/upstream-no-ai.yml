@@ -31,7 +31,7 @@ jobs:
         id: merge
         run: python3 scripts/no-ai/sync-upstream.py prepare
       - name: Require updater signing key
-        if: steps.merge.outputs.dispatch == 'true'
+        if: steps.merge.outputs.dispatch == 'true' || steps.merge.outputs.rerun != ''
         env:
           SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
@@ -81,3 +81,8 @@ jobs:
         env:
           FORK_TAG: ${{ steps.merge.outputs.tag }}
         run: gh workflow run release.yml --ref main -f tag="$FORK_TAG" -f publish=true
+      - name: Retry failed release jobs
+        if: steps.merge.outputs.rerun != ''
+        env:
+          RELEASE_RUN_ID: ${{ steps.merge.outputs.rerun }}
+        run: gh run rerun "$RELEASE_RUN_ID" --failed --repo "$GITHUB_REPOSITORY"

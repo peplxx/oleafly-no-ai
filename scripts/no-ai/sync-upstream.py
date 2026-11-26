@@ -9,6 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / "fork/upstream.json"
+# GitHub's run_attempt includes the initial run and manual re-runs.
+MAX_RELEASE_ATTEMPTS = 4
 
 
 def run(*args, check=True):
@@ -68,7 +70,19 @@ def prepare():
             output(ready=False, dispatch=False, tag=tag)
             return
         if runs:
-            raise RuntimeError(f"{tag} is not published. Fix/re-run its release workflow before advancing.")
+            latest = max(runs, key=lambda r: r["id"])
+            if latest["conclusion"] not in {"failure", "timed_out", "startup_failure"}:
+                raise RuntimeError(
+                    f"{tag} is not published; its latest release run ended with {latest['conclusion']}. "
+                    "Inspect/re-run it manually before advancing.")
+            if latest["run_attempt"] >= MAX_RELEASE_ATTEMPTS:
+                raise RuntimeError(
+                    f"{tag} is not published after {latest['run_attempt']} attempts "
+                    f"(automatic limit: {MAX_RELEASE_ATTEMPTS}). "
+                    "Fix/re-run its release workflow manually before advancing.")
+            # Reuse successful jobs and keep this tag blocked until publication.
+            output(ready=False, dispatch=False, tag=tag, rerun=latest["id"])
+            return
         output(ready=False, dispatch=True, tag=tag)
         return
     releases = []
