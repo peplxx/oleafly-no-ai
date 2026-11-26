@@ -120,13 +120,16 @@ beforeEach(async () => {
   select(visual, "word");
 });
 
-afterEach(() => {
+afterEach(async () => {
   setWysiwygVisible(false);
   setWysiwygEditor(null);
   setEditorView(null);
   view.destroy();
   for (const dispose of disposers.splice(0).reverse()) dispose();
   useHomeViewStore.setState({ page: "library" });
+  // The cached Markdown model can leave ProseMirror DOM-observer flushes on
+  // 20 ms timers. Drain them while jsdom still exists, including after the last test.
+  await settle();
 });
 
 describe("the palette under a page that covers the project", { timeout: 60_000 }, () => {
