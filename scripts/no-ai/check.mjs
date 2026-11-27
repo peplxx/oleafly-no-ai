@@ -17,8 +17,10 @@ try {
     `https://github.com/${state.fork}/releases/latest/download/latest.json`,
   ]);
   assert.equal(config.plugins.updater.pubkey, read('fork/updater.pub').trim(), 'Updater signing key changed');
+  assert.equal(config.bundle.macOS.signingIdentity, '-', 'macOS bundles must have an ad-hoc signing default');
   assert.equal(JSON.parse(read('package.json')).version, config.version);
-  assert.equal(state.releaseTag, `v${config.version}-noai.1`);
+  const releaseTag = /^v(\d+\.\d+\.\d+)-noai\.([1-9]\d*)$/.exec(state.releaseTag);
+  assert.equal(releaseTag?.[1], config.version, 'Fork release tag must match the app version and have a positive no-AI revision');
 } catch (error) {
   errors.push(error.message);
 }

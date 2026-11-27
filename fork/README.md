@@ -18,10 +18,10 @@
 - Enable GitHub Actions in the fork, including scheduled workflows.
 - Store the generated private updater key as the repository secret `TAURI_SIGNING_PRIVATE_KEY`. Its public counterpart is `updater.pub` and is embedded in `src-tauri/tauri.conf.json`.
 - The generated key has no password; leave `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` unset. Keep a secure backup of the private key. `.local-signing/` is ignored by Git.
-- Platform signing is optional: Apple signing/notarization and Windows Authenticode use the upstream workflow's secrets. Updater signatures are mandatory even without those platform certificates.
+- macOS bundles are signed ad hoc by default, including the app's resources and bundled executables. CI verifies the app inside both the DMG and updater archive before publication. Without an Apple Developer ID certificate and notarization, macOS can still require **System Settings → Privacy & Security → Open Anyway** for the first launch. A configured `APPLE_SIGNING_IDENTITY` overrides the ad-hoc default; see `docs/signing.md` for Apple signing/notarization. Windows Authenticode uses the upstream workflow's optional secrets. Updater signatures are mandatory and separate from platform signing.
 - Run **Sync upstream without AI** once, or wait for its schedule.
 
-The app keeps upstream's internal version number. The no-AI suffix distinguishes repository tags; it is not a Tauri prerelease channel. A second build with the same internal version is not an automatic upgrade for existing clients. To ship a same-version fix, choose an increasing application version and adjust the release state/policy deliberately.
+The app keeps upstream's internal version number. The no-AI suffix distinguishes repository tags; it is not a Tauri prerelease channel. For a packaging-only rebuild, increase the positive revision in `fork/upstream.json` (for example, `v0.4.13-noai.2`); sync checks and publishes that revision before advancing upstream. A second build with the same internal version requires a manual reinstall. To deliver a same-upstream-version fix through automatic updates, choose an increasing application version and adjust the release state/policy deliberately.
 
 GitHub can delay scheduled jobs and disables schedules in public repositories after 60 days without repository activity. Repository rules may also prevent the bot from pushing to `main`, or from updating workflow files. These conditions need repository-owner intervention; unattended operation cannot be guaranteed indefinitely.
 

@@ -69,6 +69,15 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.prepare(), {"ready": True, "dispatch": True, "tag": "v1.0.0-noai.1"})
         self.assertEqual(self.git("tag"), "")
 
+    def test_packaging_revision_requires_checks_and_preserves_previous_tag(self):
+        self.git("tag", "v1.0.0-noai.1")
+        state = json.loads(self.state.read_text())
+        state["releaseTag"] = "v1.0.0-noai.2"
+        self.state.write_text(json.dumps(state))
+        self.commit("prepare signed packaging revision")
+        self.assertEqual(self.prepare(), {"ready": True, "dispatch": True, "tag": "v1.0.0-noai.2"})
+        self.assertEqual(self.git("tag"), "v1.0.0-noai.1")
+
     def release_run(self, **changes):
         return {"id": 100, "display_title": "Release v1.0.0-noai.1", "status": "completed",
                 "conclusion": "failure", "run_attempt": 1, **changes}

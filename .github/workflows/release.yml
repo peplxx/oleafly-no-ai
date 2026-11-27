@@ -293,10 +293,9 @@ jobs:
         shell: bash
         run: bash scripts/smoke-biblatex.sh ${{ matrix.rust_target }}
 
-      # macOS code signing + notarization. Every APPLE_* value is exported only
-      # when its secret exists: an empty env var would make the bundler attempt
-      # signing with an empty identity, whereas absent vars mean "unsigned
-      # build" (still succeeds, for forks and for before certs are set up).
+      # A configured Apple identity overrides the ad-hoc signing default in
+      # tauri.conf.json. Do not export an empty identity: it would override that
+      # default and leave the app bundle without a valid resource signature.
       # See docs/signing.md for the one-time account/certificate setup.
       - name: Enable macOS signing & notarization (when secrets exist)
         if: runner.os == 'macOS'
@@ -328,7 +327,7 @@ jobs:
             export_env KEYCHAIN_PASSWORD "$(openssl rand -hex 24)"
             echo "macOS signing: enabled"
           else
-            echo "macOS signing: secrets not set, building unsigned"
+            echo "macOS signing: using the ad-hoc default; no Apple notarization"
           fi
 
       # Windows Authenticode via Azure Trusted/Artifact Signing (~$10/month,
@@ -428,6 +427,11 @@ jobs:
           # below performs a deterministic target-owned merge before release.
           retryAttempts: 3
           args: ${{ matrix.args }} ${{ env.TAURI_SIGN_ARGS }} ${{ env.TAURI_BUNDLE_ARGS }}
+
+      - name: Verify signatures inside macOS release packages
+        if: runner.os == 'macOS'
+        shell: bash
+        run: bash scripts/no-ai/verify-macos-bundles.sh "src-tauri/target/${{ matrix.rust_target }}/release/bundle"
 
       # Work with byte-for-byte copies of the files tauri-action uploaded to
       # the draft release. This keeps provenance and SBOM subjects aligned with

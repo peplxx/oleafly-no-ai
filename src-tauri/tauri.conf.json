@@ -63,6 +63,7 @@
       "resources/language-servers/": "resources/language-servers/"
     },
     "macOS": {
+      "signingIdentity": "-",
       "hardenedRuntime": true,
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "10.15",
